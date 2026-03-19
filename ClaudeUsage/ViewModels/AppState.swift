@@ -99,19 +99,26 @@ final class AppState {
             return "—"
         }
 
-        var parts: [String] = []
+        var parts: [(prefix: String, value: Int)] = []
 
         if showFiveHour, let fh = usage.fiveHour {
-            parts.append("5h:\(fh.percentage)%")
+            parts.append(("5h", fh.percentage))
         }
         if showSevenDay, let sd = usage.sevenDay {
-            parts.append("7d:\(sd.percentage)%")
+            parts.append(("7d", sd.percentage))
         }
         if showOpus, let op = usage.sevenDayOpus, op.utilization > 0 {
-            parts.append("Op:\(op.percentage)%")
+            parts.append(("Op", op.percentage))
         }
 
-        return parts.isEmpty ? "—" : parts.joined(separator: " ")
+        if parts.isEmpty { return "—" }
+
+        // When only one window is shown, display just the percentage
+        if parts.count == 1 {
+            return "\(parts[0].value)%"
+        }
+
+        return parts.map { "\($0.prefix):\($0.value)%" }.joined(separator: " ")
     }
 
     var menuBarColor: Color {

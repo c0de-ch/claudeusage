@@ -85,10 +85,23 @@ struct SettingsView: View {
 
     private var displayTab: some View {
         Form {
-            Section("Show in menu bar") {
+            Section(header: Text("Show in menu bar"),
+                    footer: Text("With one item selected, the menu bar shows just the percentage (e.g. \"24%\"). With multiple, it shows prefixed values (e.g. \"5h:45% 7d:24%\").")) {
                 Toggle("5-Hour window", isOn: $appState.showFiveHour)
                 Toggle("7-Day window", isOn: $appState.showSevenDay)
                 Toggle("Opus usage", isOn: $appState.showOpus)
+            }
+
+            Section("Preview") {
+                HStack {
+                    Image(systemName: "brain")
+                        .foregroundStyle(.secondary)
+                    Text(appState.menuBarText)
+                        .font(.system(.body, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundStyle(appState.menuBarColor)
+                }
+                .padding(.vertical, 2)
             }
         }
         .formStyle(.grouped)
