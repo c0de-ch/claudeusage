@@ -112,7 +112,11 @@ final class AppState {
     func startIfNeeded() {
         guard !hasStarted else { return }
         hasStarted = true
-        start()
+        // Defer to next run loop iteration to avoid layout recursion
+        // in MenuBarExtra during initial setup
+        DispatchQueue.main.async {
+            self.start()
+        }
     }
 
     func start() {
