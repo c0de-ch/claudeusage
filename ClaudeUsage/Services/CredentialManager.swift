@@ -51,7 +51,13 @@ final class CredentialManager {
     }
 
     private var credentialsPath: String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        // Use getpwuid to get the real home directory, bypassing sandbox container redirection
+        let home: String
+        if let pw = getpwuid(getuid()) {
+            home = String(cString: pw.pointee.pw_dir)
+        } else {
+            home = FileManager.default.homeDirectoryForCurrentUser.path
+        }
         return "\(home)/.claude/.credentials.json"
     }
 
