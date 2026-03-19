@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var appState: AppState
     @State private var launchAtLogin = false
+    @State private var showingCookieAuth = false
 
     private let intervals: [(String, TimeInterval)] = [
         ("30 seconds", 30),
@@ -98,11 +99,33 @@ struct SettingsView: View {
     private var advancedTab: some View {
         Form {
             Section(header: Text("Fallback: Web API (Cookie Auth)"),
-                    footer: Text("Only needed if OAuth endpoint has issues. Get the session cookie from claude.ai browser DevTools.")) {
-                TextField("Organization ID", text: $appState.organizationId)
-                    .textFieldStyle(.roundedBorder)
-                SecureField("Session Cookie", text: $appState.sessionCookie)
-                    .textFieldStyle(.roundedBorder)
+                    footer: Text("Only needed if OAuth endpoint has issues.")) {
+
+                if appState.sessionCookie.isEmpty {
+                    Button("Sign in to claude.ai...") {
+                        showingCookieAuth = true
+                    }
+                } else {
+                    LabeledContent("Session") {
+                        HStack(spacing: 4) {
+                            Circle().fill(.green).frame(width: 8, height: 8)
+                            Text("Authenticated")
+                                .font(.caption)
+                        }
+                    }
+                    LabeledContent("Org ID") {
+                        Text(appState.organizationId.isEmpty ? "—" : appState.organizationId)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button("Sign in again...") {
+                        showingCookieAuth = true
+                    }
+                    Button("Clear", role: .destructive) {
+                        appState.sessionCookie = ""
+                        appState.organizationId = ""
+                    }
+                }
             }
 
             Section("About") {
@@ -111,6 +134,18 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showingCookieAuth) {
+            CookieAuthView(
+                onComplete: { cookie, orgId in
+                    appState.sessionCookie = cookie
+                    appState.organizationId = orgId
+                    showingCookieAuth = false
+                },
+                onCancel: {
+                    showingCookieAuth = false
+                }
+            )
+        }
     }
 
     private var credentialStatusColor: Color {
