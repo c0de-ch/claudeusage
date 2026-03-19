@@ -65,11 +65,36 @@ final class AppState {
         self.organizationId = defaults.string(forKey: "organizationId") ?? ""
     }
 
+    // MARK: - Auth State
+
+    var needsSignIn: Bool {
+        credentialManager.credentialStatus == .unknown
+        && credentialManager.credentialStatus != .loaded
+        && sessionCookie.isEmpty
+    }
+
+    var hasWebAuth: Bool {
+        !sessionCookie.isEmpty && !organizationId.isEmpty
+    }
+
+    func applyWebAuth(cookie: String, orgId: String) {
+        sessionCookie = cookie
+        organizationId = orgId
+        // Restart fetching with the new credentials
+        Task {
+            _ = await performRefresh()
+            if !scheduler.isRunning {
+                scheduler.start()
+            }
+        }
+    }
+
     // MARK: - Computed Properties
 
     var menuBarText: String {
         guard let usage else {
             if isLoading { return "⏳" }
+            if needsSignIn { return "Sign in" }
             if error != nil { return "⚠️" }
             return "—"
         }
@@ -149,8 +174,37 @@ final class AppState {
         isLoading = true
         error = nil
 
+        // Try OAuth first
         do {
             let response = try await usageService?.fetchUsage()
+            usage = response
+            lastUpdated = Date()
+            isLoading = false
+            checkNotificationThresholds(response)
+            return true
+        } catch {
+            // If OAuth fails and we have cookie auth, try that
+            if hasWebAuth {
+                return await performWebRefresh()
+            }
+
+            // If it's just a missing credentials file and no web auth, don't show as error
+            if case CredentialError.fileNotFound = error {
+                self.error = nil
+            } else if case CredentialError.noOAuthCredentials = error {
+                self.error = nil
+            } else {
+                self.error = error.localizedDescription
+            }
+            isLoading = false
+            return false
+        }
+    }
+
+    private func performWebRefresh() async -> Bool {
+        do {
+            let webService = WebUsageService(sessionCookie: sessionCookie, organizationId: organizationId)
+            let response = try await webService.fetchUsage()
             usage = response
             lastUpdated = Date()
             isLoading = false

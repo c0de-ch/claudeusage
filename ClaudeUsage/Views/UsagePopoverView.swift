@@ -3,6 +3,7 @@ import SwiftUI
 
 struct UsagePopoverView: View {
     let appState: AppState
+    @State private var showingCookieAuth = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -14,7 +15,7 @@ struct UsagePopoverView: View {
                 if appState.isLoading {
                     ProgressView()
                         .controlSize(.small)
-                } else {
+                } else if appState.usage != nil {
                     Button(action: { appState.manualRefresh() }) {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -47,6 +48,25 @@ struct UsagePopoverView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
+            // Sign-in prompt when no auth is available
+            if appState.needsSignIn && appState.usage == nil && !appState.isLoading {
+                VStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.badge.questionmark")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                    Text("Sign in to view your usage")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button("Sign in to claude.ai") {
+                        showingCookieAuth = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            }
+
             // Usage cards
             if let usage = appState.usage {
                 if appState.showFiveHour, let fiveHour = usage.fiveHour {
@@ -60,22 +80,16 @@ struct UsagePopoverView: View {
                 if appState.showOpus, let opus = usage.sevenDayOpus, opus.utilization > 0 {
                     UsageCardView(title: "7-Day Opus", window: opus)
                 }
-            } else if !appState.isLoading && appState.error == nil {
-                ContentUnavailableView {
-                    Label("No Data", systemImage: "chart.bar")
-                } description: {
-                    Text("Usage data will appear after first refresh")
-                }
             }
 
             Divider()
 
-            // Credential status
+            // Auth status
             HStack(spacing: 4) {
                 Circle()
-                    .fill(credentialStatusColor)
+                    .fill(authStatusColor)
                     .frame(width: 6, height: 6)
-                Text("Token: \(appState.credentialManager.credentialStatus.description)")
+                Text(authStatusText)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -100,14 +114,39 @@ struct UsagePopoverView: View {
         }
         .padding(16)
         .frame(width: 280)
+        .sheet(isPresented: $showingCookieAuth) {
+            CookieAuthView(
+                onComplete: { cookie, orgId in
+                    appState.applyWebAuth(cookie: cookie, orgId: orgId)
+                    showingCookieAuth = false
+                },
+                onCancel: {
+                    showingCookieAuth = false
+                }
+            )
+        }
     }
 
-    private var credentialStatusColor: Color {
-        switch appState.credentialManager.credentialStatus {
-        case .loaded: return .green
-        case .refreshing: return .yellow
-        case .error, .expired: return .red
-        case .unknown: return .gray
+    private var authStatusColor: Color {
+        if appState.hasWebAuth || appState.credentialManager.credentialStatus == .loaded {
+            return .green
         }
+        if appState.credentialManager.credentialStatus == .refreshing {
+            return .yellow
+        }
+        if appState.needsSignIn {
+            return .gray
+        }
+        return .red
+    }
+
+    private var authStatusText: String {
+        if appState.credentialManager.credentialStatus == .loaded {
+            return "OAuth token active"
+        }
+        if appState.hasWebAuth {
+            return "Web session active"
+        }
+        return "Not signed in"
     }
 }
