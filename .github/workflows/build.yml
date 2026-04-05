@@ -77,9 +77,10 @@ jobs:
             -scheme ClaudeUsage \
             -configuration Release \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_IDENTITY="-"
+
+          # Re-sign the app bundle with ad-hoc signature to avoid "damaged" error
+          codesign --force --deep --sign - "build/Build/Products/Release/ClaudeUsage.app"
 
       - name: Package DMG
         run: |
